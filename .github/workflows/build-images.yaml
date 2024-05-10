@@ -5,7 +5,7 @@ on:
     tags:
       - "*"
 jobs:
-  arc-sidecar:
+  htcondor-sidecar:
     runs-on: ubuntu-latest
     #env:
     #  DOCKER_TARGET_PLATFORM: linux/arm64
