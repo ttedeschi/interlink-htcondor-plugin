@@ -169,7 +169,7 @@ def mountConfigMaps(pod, container_standalone):
                 if vol["name"] != mountSpec["name"]:
                     continue
                 if "configMap" in vol.keys():
-                    print("container_standaolone:", container_standalone)
+                    print("container_standalone:", container_standalone)
                     cfgMaps = container_standalone["configMaps"]
                     for cfgMap in cfgMaps:
                         podConfigMapDir = os.path.join(
@@ -343,7 +343,7 @@ when_to_transfer_output = ON_EXIT_OR_EVICT
 
 Queue 1
 """
-        print(job)
+        #print(job)
         with open(sub_path, "w") as f_:
             f_.write(job)
         os.chmod(executable_path, 0o0777)
@@ -386,7 +386,7 @@ when_to_transfer_output = ON_EXIT_OR_EVICT
 
 Queue 1
 """
-        print(job)
+        #print(job)
         with open(sub_path, "w") as f_:
             f_.write(job)
         os.chmod(executable_path, 0o0777)
@@ -445,11 +445,11 @@ def SubmitHandler():
     # READ THE REQUEST ###############
     logging.info("HTCondor Sidecar: received Submit call")
     request_data_string = request.data.decode("utf-8")
-    print("Decoded", request_data_string)
+    #print("Decoded", request_data_string)
     req = json.loads(request_data_string)[0]
     if req is None or not isinstance(req, dict):
         logging.error("Invalid request data for submitting")
-        print("Invalid submit request body is: ", req)
+        #print("Invalid submit request body is: ", req)
         return "Invalid request data for submitting", 400
 
     # ELABORATE RESPONSE ###########
@@ -524,20 +524,20 @@ def SubmitHandler():
                 )
             else:
                 singularity_command = commstr1 + envs + local_mounts + [image]
-            print("singularity_command:", singularity_command)
+            #print("singularity_command:", singularity_command)
             singularity_commands.append(singularity_command)
         path = produce_htcondor_singularity_script(
             containers, metadata, singularity_commands, input_files
         )
 
     else:
-        print("host keyword detected, ignoring other containers")
+        #print("host keyword detected, ignoring other containers")
         sitename = containers[0]["image"].split(":")[-1]
         print(sitename)
         path = produce_htcondor_host_script(containers[0], metadata)
 
     out_jid = htcondor_batch_submit(path)
-    print("Job was submitted with cluster id: ", out_jid)
+    #print("Job was submitted with cluster id: ", out_jid)
     handle_jid(out_jid, pod)
 
     try:
@@ -559,14 +559,14 @@ def StopHandler():
     request_data_string = request.data.decode("utf-8")
     req = json.loads(request_data_string)
     if req is None or not isinstance(req, dict):
-        print("Invalid delete request body is: ", req)
+        #print("Invalid delete request body is: ", req)
         logging.error("Invalid request data")
         return "Invalid request data for stopping", 400
 
     # DELETE JOB RELATED TO REQUEST
     try:
         return_message = delete_pod(req)
-        print(return_message)
+        #print(return_message)
         if "All" in return_message:
             return "Requested pod successfully deleted", 200
         else:
@@ -580,9 +580,9 @@ def StatusHandler():
     logging.info("HTCondor Sidecar: received GetStatus call")
     request_data_string = request.data.decode("utf-8")
     req = json.loads(request_data_string)[0]
-    print(req)
+    #print(req)
     if req is None or not isinstance(req, dict):
-        print("Invalid status request body is: ", req)
+        #print("Invalid status request body is: ", req)
         logging.error("Invalid request data")
         return "Invalid request data for getting status", 400
 
@@ -641,7 +641,7 @@ def StatusHandler():
                 "image": "NOT IMPLEMENTED",
                 "imageID": "NOT IMPLEMENTED"
             })
-        print(json.dumps(resp))
+        #print(json.dumps(resp))
         return json.dumps(resp), 200
     except Exception as e:
         return f"Something went wrong when retrieving pod status: {e}", 500
@@ -653,7 +653,7 @@ def LogsHandler():
     # print(request_data_string)
     req = json.loads(request_data_string)
     if req is None or not isinstance(req, dict):
-        print("Invalid logs request body is: ", req)
+        #print("Invalid logs request body is: ", req)
         logging.error("Invalid request data")
         return "Invalid request data for getting logs", 400
 
