@@ -6,6 +6,7 @@ COPY handles.py /utils/handles.py
 COPY SidecarConfig.yaml /utils/SidecarConfig.yaml
 RUN touch /utils/condor_config
 RUN mkdir /utils/.knoc
+RUN yum install -y git vim wget
 
 WORKDIR /utils
 
