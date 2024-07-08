@@ -445,7 +445,7 @@ def SubmitHandler():
     # READ THE REQUEST ###############
     logging.info("HTCondor Sidecar: received Submit call")
     request_data_string = request.data.decode("utf-8")
-    #print("Decoded", request_data_string)
+    print("Decoded", request_data_string)
     req = json.loads(request_data_string)[0]
     if req is None or not isinstance(req, dict):
         logging.error("Invalid request data for submitting")
@@ -540,15 +540,24 @@ def SubmitHandler():
     #print("Job was submitted with cluster id: ", out_jid)
     handle_jid(out_jid, pod)
 
-    try:
+    resp = {
+            "PodUID": [],
+            "PodJID": []
+        }
+
+    #try:
+    if True:
         with open(
             InterLinkConfigInst["DataRootFolder"] +
             pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + ".jid",
             "r",
         ) as f:
             f.read()
-        return "Job submitted successfully", 200
-    except Exception as e:
+        resp["PodUID"] = pod["metadata"]["uid"]
+        resp["PodJID"] = out_jid
+        return json.dumps(resp), 200
+    #except Exception as e:
+    else:
         logging.error(f"Unable to read JID from file:{e}")
         return "Something went wrong in job submission", 500
 
@@ -579,19 +588,30 @@ def StatusHandler():
     # READ THE REQUEST #####################
     logging.info("HTCondor Sidecar: received GetStatus call")
     request_data_string = request.data.decode("utf-8")
-    req = json.loads(request_data_string)[0]
-    #print(req)
-    if req is None or not isinstance(req, dict):
+    #req = json.loads(request_data_string)[0]
+    #req = json.loads(request_data_string)
+    req_list = json.loads(request_data_string)
+    #print("STATUS REQUEST DATA IS THE FOLLOWING:", req)
+    if req_list is None or not isinstance(req_list, list):
         #print("Invalid status request body is: ", req)
         logging.error("Invalid request data")
+        logging.error(f"STATUS REQUEST DATA IS THE FOLLOWING: {req_list}")
         return "Invalid request data for getting status", 400
+    if isinstance(req_list, list):
+        if len(req_list) == 0:
+            logging.error("Invalid request data")
+            logging.error(f"STATUS REQUEST DATA IS THE FOLLOWING: {req_list}")
+            return "Invalid request data for getting status", 400
+    
+    req = req_list[0]
 
     # ELABORATE RESPONSE #################
     resp = [
         {
             "name": [],
-            "uid": [],
+            "UID": [],
             "namespace": [],
+            "JID": [],
             "containers": []
         }
     ]
@@ -607,7 +627,8 @@ def StatusHandler():
         poduid = req["metadata"]["uid"]
         resp[0]["name"] = podname
         resp[0]["namespace"] = podnamespace
-        resp[0]["uid"] = poduid
+        resp[0]["UID"] = poduid
+        resp[0]["JID"] = jid_job
         process = os.popen(f"condor_q {jid_job} --json")
         preprocessed = process.read()
         process.close()
