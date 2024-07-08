@@ -545,8 +545,7 @@ def SubmitHandler():
             "PodJID": []
         }
 
-    #try:
-    if True:
+    try:
         with open(
             InterLinkConfigInst["DataRootFolder"] +
             pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + ".jid",
@@ -556,8 +555,7 @@ def SubmitHandler():
         resp["PodUID"] = pod["metadata"]["uid"]
         resp["PodJID"] = out_jid
         return json.dumps(resp), 200
-    #except Exception as e:
-    else:
+    except Exception as e:
         logging.error(f"Unable to read JID from file:{e}")
         return "Something went wrong in job submission", 500
 
