@@ -472,7 +472,7 @@ def SubmitHandler():
             envs = prepare_envs(container)
             image = ""
             mounts = [""]
-            singularity_options = metadata.get("Annotations", {}).get(
+            singularity_options = metadata.get("annotations", {}).get(
                     "htcondor-job.vk.io/singularity-options", ""
                 )
             if containers_standalone is not None:
@@ -483,7 +483,7 @@ def SubmitHandler():
             else:
                 mounts = [""]
             if container["image"].startswith("/") or ".io" in container["image"]:
-                image_uri = metadata.get("Annotations", {}).get(
+                image_uri = metadata.get("annotations", {}).get(
                     "htcondor-job.knoc.io/image-root", None
                 )
                 if image_uri:
