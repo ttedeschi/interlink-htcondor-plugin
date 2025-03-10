@@ -471,6 +471,9 @@ def SubmitHandler():
             envs = prepare_envs(container)
             image = ""
             mounts = [""]
+            singularity_options = metadata.get("Annotations", {}).get(
+                    "htcondor-job.vk.io/singularity-options", ""
+                )
             if containers_standalone is not None:
                 for c in containers_standalone:
                     if c["name"] == container["name"]:
@@ -510,7 +513,8 @@ def SubmitHandler():
 
             if "command" in container.keys() and "args" in container.keys():
                 singularity_command = (
-                    commstr1
+                    commstr1 
+                    + singularity_options
                     + envs
                     + local_mounts
                     + [image]
@@ -519,7 +523,7 @@ def SubmitHandler():
                 )
             elif "command" in container.keys():
                 singularity_command = (
-                    commstr1 + envs + local_mounts +
+                    commstr1 + singularity_options + envs + local_mounts +
                     [image] + container["command"]
                 )
             else:
