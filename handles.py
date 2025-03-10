@@ -463,7 +463,6 @@ def SubmitHandler():
 
     # NORMAL CASE
     if "host" not in containers[0]["image"]:
-        print(containers)
         for container in containers:
             logging.info(
                 f"Beginning script generation for container {container['name']}"
