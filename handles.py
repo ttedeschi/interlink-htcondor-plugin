@@ -503,7 +503,7 @@ def SubmitHandler():
                     )
             else:
                 image = "docker://" + container["image"]
-            image = container["image"]
+            #image = container["image"]
             logging.info("Appending all commands together...")
             input_files = []
             for mount in mounts[-1].split(","):
