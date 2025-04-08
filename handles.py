@@ -489,7 +489,8 @@ def SubmitHandler():
                         mounts = prepare_mounts(pod, container_standalone)
             else:
                 mounts = [""]
-            if container["image"].startswith("/") or ".io" in container["image"]:
+            #if container["image"].startswith("/") or ".io" in container["image"]:
+            if container["image"].startswith("/"):
                 image_uri = metadata.get("annotations", {}).get(
                     "htcondor-job.knoc.io/image-root", None
                 )
