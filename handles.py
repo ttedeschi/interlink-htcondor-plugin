@@ -535,6 +535,11 @@ def SubmitHandler():
                     commstr1 + [singularity_options] + envs + local_mounts +
                     [image] + container["command"]
                 )
+            elif "args" in container.keys():
+                singularity_command = (
+                    commstr1 + [singularity_options] + envs + local_mounts +
+                    [image] + container["args"]
+                )
             else:
                 singularity_command = commstr1 + envs + local_mounts + [image]
             #print("singularity_command:", singularity_command)
