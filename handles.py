@@ -334,6 +334,7 @@ def produce_htcondor_singularity_script(containers, metadata, commands, input_fi
 
         job = f"""
 Executable = {executable_path}
+requirements            = (SiteName == "T2_LNL_PD")
 
 Log        = log/mm_mul.$(Cluster).$(Process).log
 Output     = out/mm_mul.out.$(Cluster).$(Process)
@@ -378,6 +379,7 @@ def produce_htcondor_host_script(container, metadata):
         requested_memory = container["resources"]["requests"]["memory"]
         job = f"""
 Executable = {executable_path}
+requirements            = (SiteName == "T2_LNL_PD")
 
 Log        = log/mm_mul.$(Cluster).$(Process).log
 Output     = out/mm_mul.out.$(Cluster).$(Process)
