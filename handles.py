@@ -653,6 +653,7 @@ def StatusHandler():
         status = job_[0]["JobStatus"]
         if status == 1:
             state = {"waiting": {
+                "reason": "ContainerCreating"
             }
             }
             readiness = False
