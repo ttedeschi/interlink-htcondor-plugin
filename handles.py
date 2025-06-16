@@ -488,7 +488,7 @@ def SubmitHandler():
             else:
                 mounts = [""]
             #if container["image"].startswith("/") or ".io" in container["image"]:
-            if container["image"].startswith("/"):
+            if container["image"].startswith("/") and not container["image"].startswith("/cvmfs"):
                 image_uri = metadata.get("annotations", {}).get(
                     "htcondor-job.knoc.io/image-root", None
                 )
@@ -499,6 +499,8 @@ def SubmitHandler():
                     logging.warning(
                         "image-uri not specified for path in remote filesystem"
                     )
+            elif container["image"].startswith("/cvmfs"):
+                image = container["image"]
             else:
                 image = "docker://" + container["image"]
             #image = container["image"]
