@@ -128,6 +128,11 @@ def prepare_mounts(pod, container_standalone):
                 elif "emptyDir" in vol.keys():
                     path = mount_empty_dir(container, pod)
                     mount_data.append(path)
+                elif "hostPath" in vol.keys():
+                    host_path = vol["hostPath"]["path"]
+                    mount_path = mount_var["mountPath"]
+                    bind_path = f"{host_path}:{mount_path}"
+                    mount_data.append(bind_path)
                 else:
                     # Implement logic for other volume types if required.
                     logging.info(
@@ -507,11 +512,16 @@ def SubmitHandler():
             logging.info("Appending all commands together...")
             input_files = []
             for mount in mounts[-1].split(","):
-                input_files.append(mount.split(":")[0])
+                if not "/cvmfs" in mount:
+                    input_files.append(mount.split(":")[0])
             local_mounts = ["--bind", ""]
             for mount in (mounts[-1].split(","))[:-1]:
+                if "/cvmfs" not in mount:
+                    prefix_ = "./"
+                else:
+                    prefix_ = "/"
                 local_mounts[1] += (
-                    "./"
+                    prefix_
                     + (mount.split(":")[0]).split("/")[-1]
                     + ":"
                     + mount.split(":")[1]
