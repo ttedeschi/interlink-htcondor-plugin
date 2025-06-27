@@ -832,78 +832,17 @@ def StatusHandler():
 
 def LogsHandler():
     logging.info("HTCondor Sidecar: received GetLogs call")
-    
-    try:
-        request_data_string = request.data.decode("utf-8")
-        req = json.loads(request_data_string)
-        
-        # Validate request structure
-        if not isinstance(req, dict):
-            return error_response("Invalid request format", 400)
-            
-        pod_name = req.get("PodName", "")
-        pod_uid = req.get("PodUID", "")
-        container_name = req.get("ContainerName", "")
-        
-        if not pod_name or not pod_uid:
-            return error_response("Missing PodName or PodUID in request", 400)
-            
-        # Find job ID
-        jid_file = InterLinkConfigInst["DataRootFolder"] + pod_name + "-" + pod_uid + ".jid"
-        
-        try:
-            with open(jid_file, "r") as f:
-                jid = f.read().strip()
-        except FileNotFoundError:
-            return error_response("Pod not found", 404)
-            
-        # Get HTCondor log files
-        logs = []
-        
-        # Try to get standard output
-        try:
-            out_file = f"out/mm_mul.out.{jid}.0"
-            if os.path.exists(out_file):
-                with open(out_file, "r") as f:
-                    stdout_content = f.read()
-                    if stdout_content:
-                        logs.append(f"=== STDOUT ===\n{stdout_content}")
-        except Exception as e:
-            logging.warning(f"Could not read stdout file: {e}")
-            
-        # Try to get standard error
-        try:
-            err_file = f"err/mm_mul.err.{jid}.0"
-            if os.path.exists(err_file):
-                with open(err_file, "r") as f:
-                    stderr_content = f.read()
-                    if stderr_content:
-                        logs.append(f"=== STDERR ===\n{stderr_content}")
-        except Exception as e:
-            logging.warning(f"Could not read stderr file: {e}")
-            
-        # Try to get HTCondor log
-        try:
-            log_file = f"log/mm_mul.{jid}.0.log"
-            if os.path.exists(log_file):
-                with open(log_file, "r") as f:
-                    log_content = f.read()
-                    if log_content:
-                        logs.append(f"=== HTCONDOR LOG ===\n{log_content}")
-        except Exception as e:
-            logging.warning(f"Could not read HTCondor log file: {e}")
-            
-        if not logs:
-            return success_response("No logs available yet", 200)
-            
-        return success_response("\n\n".join(logs), 200)
-        
-    except json.JSONDecodeError as e:
-        logging.error(f"Invalid JSON in logs request: {e}")
-        return error_response("Invalid JSON format", 400)
-    except Exception as e:
-        logging.error(f"Error retrieving logs: {e}")
-        return error_response(f"Log retrieval failed: {str(e)}", 500)
+    request_data_string = request.data.decode("utf-8")
+    # print(request_data_string)
+    req = json.loads(request_data_string)
+    if req is None or not isinstance(req, dict):
+        #print("Invalid logs request body is: ", req)
+        logging.error("Invalid request data")
+        return "Invalid request data for getting logs", 400
+
+    resp = "NOT IMPLEMENTED"
+
+    return json.dumps(resp), 200
 
 
 app = Flask(__name__)
