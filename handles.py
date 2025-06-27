@@ -491,14 +491,19 @@ def SubmitHandler():
         request_data_string = request.data.decode("utf-8")
         logging.debug(f"Decoded request: {request_data_string}")
         
-        # Handle both array and single object formats for backward compatibility
-        parsed_data = json.loads(request_data_string)
-        if isinstance(parsed_data, list):
-            if len(parsed_data) == 0:
-                return error_response("Empty request array", 400)
-            req = parsed_data[0]
-        else:
-            req = parsed_data
+        # Parse the CreateStruct (InterLink API v0.5.0+ format)
+        # Format: {"pod": {...}, "container": [...]}
+        create_request = json.loads(request_data_string)
+        
+        # Validate that this is a CreateStruct
+        if not isinstance(create_request, dict):
+            return error_response("Request must be a CreateStruct object", 400)
+        
+        if "pod" not in create_request:
+            return error_response("Missing 'pod' field in request", 400)
+            
+        pod = create_request["pod"]
+        containers_standalone = create_request.get("container", [])
             
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in request: {e}")
@@ -507,16 +512,14 @@ def SubmitHandler():
         logging.error(f"Error decoding request: {e}")
         return error_response("Error processing request", 400)
     
-    # Validate request structure
-    is_valid, validation_message = validate_pod_request(req)
+    # Validate Pod structure
+    is_valid, validation_message = validate_pod_request(pod)
     if not is_valid:
-        logging.error(f"Invalid request structure: {validation_message}")
-        return error_response(f"Invalid request: {validation_message}", 400)
+        logging.error(f"Invalid Pod structure: {validation_message}")
+        return error_response(f"Invalid Pod: {validation_message}", 400)
 
     # ELABORATE RESPONSE ###########
-    pod = req.get("pod", {})
-    # print(pod)
-    containers_standalone = req.get("container", {})
+    # containers_standalone already extracted from create_request["container"]
     # print("Requested pod metadata name is: ", pod["metadata"]["name"])
     metadata = pod.get("metadata", {})
     containers = pod.get("spec", {}).get("containers", [])
