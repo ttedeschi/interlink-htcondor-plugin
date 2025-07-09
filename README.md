@@ -1,26 +1,73 @@
-# InterLink HTCondor sidecar
+# InterLink HTCondor Sidecar Plugin
 
-This repo contains the code of an InterLink HTCondor sidecar, i.e. a container manager plugin which interacts with
- an [InterLink](https://github.com/interTwin-eu/interLink/tree/main) instance and allows the deployment of pod's
- singularity containers on a local or remote HTCondor batch system.
+[![InterLink Compatible](https://img.shields.io/badge/InterLink-v0.5.0+-blue)](https://github.com/interlink-hq/interLink)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](LICENSE)
 
-## Quick start
+This repository contains an InterLink HTCondor sidecar plugin - a container manager that interfaces with [InterLink](https://github.com/interlink-hq/interLink) instances to deploy Kubernetes pod containers on HTCondor batch systems using Singularity/Apptainer.
 
-First of all, let's download this repo:
+## Features
+
+- **Full Kubernetes Pod Support**: Handles containers, volumes, secrets, configMaps, and resource requests
+- **Dual Execution Modes**: Singularity containers and host-based script execution  
+- **InterLink API v0.5.0+ Compatible**: Modern API with proper error handling and status codes
+- **Comprehensive Logging**: Aggregated stdout, stderr, and HTCondor job logs
+- **Real-time Status**: Live job status with actual timestamps from HTCondor
+- **Robust Error Handling**: Detailed error responses and validation
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.6+
+- HTCondor installation with command-line tools
+- Access to HTCondor scheduler and collector
+- Grid proxy certificate (for GSI authentication)
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/interlink-hq/interlink-htcondor-plugin.git
+   cd interlink-htcondor-plugin
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install flask pyyaml
+   ```
+
+3. **Configure the plugin:**
+   Edit [SidecarConfig.yaml](SidecarConfig.yaml) to set:
+   - `DataRootFolder`: Directory for job files (default: `.knoc/`)
+   - `CommandPrefix`: Optional command prefix for job execution
+   - `ExportPodData`: Enable volume and secret mounting
+
+4. **Create required directories:**
+   ```bash
+   mkdir -p .knoc out err log
+   ```
+
+### Running the Server
 
 ```bash
-git clone https://github.com/ttedeschi/InterLink_HTCondor_sidecar.git
+python3 handles.py \
+  --condor-config /path/to/condor_config \
+  --schedd-host scheduler.example.com \
+  --collector-host collector.example.com \
+  --auth-method GSI \
+  --proxy /tmp/x509up_u$(id -u) \
+  --port 8000
 ```
 
-modify the [config file](SidecarConfig.yaml) properly.
-Then to run the server you just have to enter:
+The server will start on `http://0.0.0.0:8000/` with REST API endpoints:
+- `POST /create` - Submit new pods as HTCondor jobs
+- `POST /delete` - Cancel and remove jobs
+- `GET /status` - Query job status and container states  
+- `GET /getLogs` - Retrieve job output and logs
 
-```bash
-cd InterLink_HTCondor_sidecar
-python3 handles.py --condor-config <path_to_condor_config_file> --schedd-host <schedd_host_url> --collector-host <collector_host_url> --auth-method <authentication_method> --debug <debug_option> --proxy <path_to_proxyfile> --port <server_port>
-```
+### Authentication
 
-It will be served by default at `http://0.0.0.0:8000/`. In case of GSI authentication, certificates should be placed in `/etc/grid-security/certificates`.
+For GSI authentication, ensure certificates are in `/etc/grid-security/certificates` and a valid proxy exists at the specified `--proxy` path.
 
 If Virtual Kubelet and Interlink instances are running and properly configured, you can then test deploying:
 

@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import json
 import os
 import subprocess
@@ -6,6 +6,7 @@ import logging
 import yaml
 import argparse
 import re
+from datetime import datetime
 
 parser = argparse.ArgumentParser()
 
@@ -76,6 +77,36 @@ global InterLinkConfigInst
 interlink_config_path = "./SidecarConfig.yaml"
 InterLinkConfigInst = read_yaml_file(interlink_config_path)
 print("Interlink configuration info:", InterLinkConfigInst)
+
+
+def error_response(message, status_code=500):
+    """Create standardized error response"""
+    return jsonify({
+        "error": message,
+        "timestamp": datetime.utcnow().isoformat() + "Z"
+    }), status_code
+
+
+def success_response(data, status_code=200):
+    """Create standardized success response"""
+    return jsonify(data), status_code
+
+
+def validate_pod_request(request_data):
+    """Validate incoming pod request structure"""
+    if not request_data:
+        return False, "Empty request data"
+    
+    if not isinstance(request_data, dict):
+        return False, "Request data must be a dictionary"
+    
+    if "metadata" not in request_data:
+        return False, "Missing metadata in request"
+    
+    if "name" not in request_data.get("metadata", {}):
+        return False, "Missing pod name in metadata"
+    
+    return True, "Valid request"
 
 
 def prepare_envs(container):
@@ -455,18 +486,40 @@ def handle_jid(jid, pod):
 def SubmitHandler():
     # READ THE REQUEST ###############
     logging.info("HTCondor Sidecar: received Submit call")
-    request_data_string = request.data.decode("utf-8")
-    print("Decoded", request_data_string)
-    req = json.loads(request_data_string)[0]
-    if req is None or not isinstance(req, dict):
-        logging.error("Invalid request data for submitting")
-        #print("Invalid submit request body is: ", req)
-        return "Invalid request data for submitting", 400
+    
+    try:
+        request_data_string = request.data.decode("utf-8")
+        logging.debug(f"Decoded request: {request_data_string}")
+        
+        # Parse the CreateStruct (InterLink API v0.5.0+ format)
+        # Format: {"pod": {...}, "container": [...]}
+        create_request = json.loads(request_data_string)
+        
+        # Validate that this is a CreateStruct
+        if not isinstance(create_request, dict):
+            return error_response("Request must be a CreateStruct object", 400)
+        
+        if "pod" not in create_request:
+            return error_response("Missing 'pod' field in request", 400)
+            
+        pod = create_request["pod"]
+        containers_standalone = create_request.get("container", [])
+            
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in request: {e}")
+        return error_response("Invalid JSON format", 400)
+    except Exception as e:
+        logging.error(f"Error decoding request: {e}")
+        return error_response("Error processing request", 400)
+    
+    # Validate Pod structure
+    is_valid, validation_message = validate_pod_request(pod)
+    if not is_valid:
+        logging.error(f"Invalid Pod structure: {validation_message}")
+        return error_response(f"Invalid Pod: {validation_message}", 400)
 
     # ELABORATE RESPONSE ###########
-    pod = req.get("pod", {})
-    # print(pod)
-    containers_standalone = req.get("container", {})
+    # containers_standalone already extracted from create_request["container"]
     # print("Requested pod metadata name is: ", pod["metadata"]["name"])
     metadata = pod.get("metadata", {})
     containers = pod.get("spec", {}).get("containers", [])
@@ -564,138 +617,217 @@ def SubmitHandler():
         print(sitename)
         path = produce_htcondor_host_script(containers[0], metadata)
 
-    out_jid = htcondor_batch_submit(path)
-    #print("Job was submitted with cluster id: ", out_jid)
-    handle_jid(out_jid, pod)
-
-    resp = {
-            "PodUID": [],
-            "PodJID": []
-        }
-
     try:
-        with open(
-            InterLinkConfigInst["DataRootFolder"] +
-            pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + ".jid",
-            "r",
-        ) as f:
-            f.read()
-        resp["PodUID"] = pod["metadata"]["uid"]
-        resp["PodJID"] = out_jid
-        return json.dumps(resp), 200
+        out_jid = htcondor_batch_submit(path)
+        logging.info(f"Job submitted with cluster id: {out_jid}")
+        handle_jid(out_jid, pod)
+
+        # Verify job submission was successful
+        jid_file = InterLinkConfigInst["DataRootFolder"] + pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + ".jid"
+        if not os.path.exists(jid_file):
+            raise Exception("JID file was not created")
+
+        resp = {
+            "PodUID": pod["metadata"]["uid"],
+            "PodJID": str(out_jid),
+            "metadata": {
+                "name": pod["metadata"]["name"],
+                "namespace": pod["metadata"].get("namespace", "default"),
+                "uid": pod["metadata"]["uid"]
+            }
+        }
+        
+        return success_response(resp, 201)
+        
     except Exception as e:
-        logging.error(f"Unable to read JID from file:{e}")
-        return "Something went wrong in job submission", 500
+        logging.error(f"Job submission failed: {e}")
+        return error_response(f"Job submission failed: {str(e)}", 500)
 
 
 def StopHandler():
     # READ THE REQUEST ######
     logging.info("HTCondor Sidecar: received Stop call")
-    request_data_string = request.data.decode("utf-8")
-    req = json.loads(request_data_string)
-    if req is None or not isinstance(req, dict):
-        #print("Invalid delete request body is: ", req)
-        logging.error("Invalid request data")
-        return "Invalid request data for stopping", 400
+    
+    try:
+        request_data_string = request.data.decode("utf-8")
+        req = json.loads(request_data_string)
+        
+        # Validate request structure
+        is_valid, validation_message = validate_pod_request(req)
+        if not is_valid:
+            logging.error(f"Invalid delete request: {validation_message}")
+            return error_response(f"Invalid request: {validation_message}", 400)
+            
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in delete request: {e}")
+        return error_response("Invalid JSON format", 400)
+    except Exception as e:
+        logging.error(f"Error processing delete request: {e}")
+        return error_response("Error processing request", 400)
 
     # DELETE JOB RELATED TO REQUEST
     try:
         return_message = delete_pod(req)
-        #print(return_message)
-        if "All" in return_message:
-            return "Requested pod successfully deleted", 200
+        logging.info(f"Pod deletion result: {return_message}")
+        
+        # Check if deletion was successful
+        if "All" in return_message or "removed" in return_message.lower():
+            resp = {
+                "message": "Pod successfully deleted",
+                "podUID": req.get("metadata", {}).get("uid", ""),
+                "podName": req.get("metadata", {}).get("name", "")
+            }
+            return success_response(resp, 200)
         else:
-            return "Something went wrong when deleting the requested pod", 500
+            return error_response("Failed to delete pod from HTCondor", 500)
+            
+    except FileNotFoundError as e:
+        logging.error(f"Pod files not found during deletion: {e}")
+        return error_response("Pod not found or already deleted", 404)
     except Exception as e:
-        return f"Something went wrong when deleting the requested pod:{e}", 500
+        logging.error(f"Error deleting pod: {e}")
+        return error_response(f"Deletion failed: {str(e)}", 500)
 
 
 def StatusHandler():
     # READ THE REQUEST #####################
     logging.info("HTCondor Sidecar: received GetStatus call")
-    request_data_string = request.data.decode("utf-8")
-    #req = json.loads(request_data_string)[0]
-    #req = json.loads(request_data_string)
-    req_list = json.loads(request_data_string)
-    #print("STATUS REQUEST DATA IS THE FOLLOWING:", req)
-    if req_list is None or not isinstance(req_list, list):
-        #print("Invalid status request body is: ", req)
-        logging.error("Invalid request data")
-        logging.error(f"STATUS REQUEST DATA IS THE FOLLOWING: {req_list}")
-        return "Invalid request data for getting status", 400
-    if isinstance(req_list, list):
-        if len(req_list) == 0:
-            logging.error("Invalid request data")
-            logging.error(f"STATUS REQUEST DATA IS THE FOLLOWING: {req_list}")
-            if os.path.isfile(args.proxy):
-                return "This is a ping request.. I'm alive!", 200
-            else:
-                return "This is a ping request.. I'm not alive yet, no proxyfile available!", 400
     
-    req = req_list[0]
+    try:
+        request_data_string = request.data.decode("utf-8")
+        req_list = json.loads(request_data_string)
+        
+        # Handle ping requests (empty array)
+        if isinstance(req_list, list) and len(req_list) == 0:
+            logging.info("Received ping request")
+            if args.proxy and os.path.isfile(args.proxy):
+                return success_response({"message": "HTCondor sidecar is alive", "status": "healthy"}, 200)
+            else:
+                return error_response("HTCondor sidecar not ready - proxy file not available", 503)
+        
+        # Validate request format
+        if not isinstance(req_list, list):
+            return error_response("Status request must be an array", 400)
+        
+        if len(req_list) == 0:
+            return error_response("Empty request array", 400)
+            
+        req = req_list[0]
+        
+        # Validate request structure
+        is_valid, validation_message = validate_pod_request(req)
+        if not is_valid:
+            logging.error(f"Invalid status request: {validation_message}")
+            return error_response(f"Invalid request: {validation_message}", 400)
+            
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid JSON in status request: {e}")
+        return error_response("Invalid JSON format", 400)
+    except Exception as e:
+        logging.error(f"Error processing status request: {e}")
+        return error_response("Error processing request", 400)
 
     # ELABORATE RESPONSE #################
-    resp = [
-        {
-            "name": [],
-            "UID": [],
-            "namespace": [],
-            "JID": [],
-            "containers": []
-        }
-    ]
     try:
-        with open(
-            InterLinkConfigInst["DataRootFolder"] +
-            req["metadata"]["name"] + "-" + req['metadata']['uid'] + ".jid",
-            "r",
-        ) as f:
-            jid_job = f.read()
+        jid_file = InterLinkConfigInst["DataRootFolder"] + req["metadata"]["name"] + "-" + req['metadata']['uid'] + ".jid"
+        
+        with open(jid_file, "r") as f:
+            jid_job = f.read().strip()
+            
         podname = req["metadata"]["name"]
-        podnamespace = req["metadata"]["namespace"]
+        podnamespace = req["metadata"].get("namespace", "default")
         poduid = req["metadata"]["uid"]
-        resp[0]["name"] = podname
-        resp[0]["namespace"] = podnamespace
-        resp[0]["UID"] = poduid
-        resp[0]["JID"] = jid_job
+        
+        # Query HTCondor for job status
         process = os.popen(f"condor_q {jid_job} --json")
         preprocessed = process.read()
         process.close()
-        job_ = json.loads(preprocessed)
-        status = job_[0]["JobStatus"]
-        if status == 1:
-            state = {"waiting": {
-                "reason": "ContainerCreating"
-            }
-            }
+        
+        if not preprocessed.strip():
+            # Job not found in queue, check history
+            process = os.popen(f"condor_history {jid_job} --json")
+            preprocessed = process.read()
+            process.close()
+        
+        if not preprocessed.strip():
+            return error_response(f"Job {jid_job} not found in HTCondor queue or history", 404)
+            
+        job_data = json.loads(preprocessed)
+        if not job_data:
+            return error_response(f"No job data found for job {jid_job}", 404)
+            
+        job = job_data[0]
+        status = job.get("JobStatus", 0)
+        
+        # Get actual timestamps from HTCondor
+        current_time = datetime.utcnow().isoformat() + "Z"
+        start_time = datetime.fromtimestamp(job.get("JobStartDate", 0)).isoformat() + "Z" if job.get("JobStartDate") else current_time
+        completion_time = datetime.fromtimestamp(job.get("CompletionDate", 0)).isoformat() + "Z" if job.get("CompletionDate") else current_time
+        
+        # Map HTCondor status to Kubernetes container states
+        if status == 1:  # Idle
+            state = {"waiting": {"reason": "ContainerCreating"}}
             readiness = False
-        elif status == 2:
-            state = {"running": {
-                "startedAt": "2006-01-02T15:04:05Z",
-            }
-            }
+        elif status == 2:  # Running
+            state = {"running": {"startedAt": start_time}}
             readiness = True
-        else:
+        elif status == 4:  # Completed
             state = {"terminated": {
-                "startedAt": "2006-01-02T15:04:05Z",
-                "finishedAt": "2006-01-02T15:04:05Z",
-            }
-            }
+                "startedAt": start_time,
+                "finishedAt": completion_time,
+                "exitCode": job.get("ExitCode", 0),
+                "reason": "Completed"
+            }}
             readiness = False
+        elif status == 3:  # Removed
+            state = {"terminated": {
+                "startedAt": start_time,
+                "finishedAt": completion_time,
+                "reason": "Cancelled"
+            }}
+            readiness = False
+        elif status == 5:  # Held
+            state = {"waiting": {
+                "reason": "JobHeld",
+                "message": job.get("HoldReason", "Job held by HTCondor")
+            }}
+            readiness = False
+        else:
+            state = {"waiting": {"reason": "Unknown"}}
+            readiness = False
+        # Build container status list
+        containers = []
         for c in req["spec"]["containers"]:
-            resp[0]["containers"].append({
+            containers.append({
                 "name": c["name"],
                 "state": state,
                 "lastState": {},
                 "ready": readiness,
                 "restartCount": 0,
-                "image": "NOT IMPLEMENTED",
-                "imageID": "NOT IMPLEMENTED"
+                "image": c.get("image", "unknown"),
+                "imageID": c.get("image", "unknown")
             })
-        #print(json.dumps(resp))
-        return json.dumps(resp), 200
+        
+        # Build response in expected format
+        resp = [{
+            "name": podname,
+            "UID": poduid,
+            "namespace": podnamespace,
+            "JID": jid_job,
+            "containers": containers
+        }]
+        
+        return success_response(resp, 200)
+        
+    except FileNotFoundError as e:
+        logging.error(f"Job file not found: {e}")
+        return error_response("Pod not found", 404)
+    except json.JSONDecodeError as e:
+        logging.error(f"Error parsing HTCondor response: {e}")
+        return error_response("Error parsing job status", 500)
     except Exception as e:
-        return f"Something went wrong when retrieving pod status: {e}", 500
+        logging.error(f"Error retrieving pod status: {e}")
+        return error_response(f"Status retrieval failed: {str(e)}", 500)
 
 
 def LogsHandler():
