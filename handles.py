@@ -1,8 +1,3 @@
-#!/bin/bash
-
-
-
-singularity exec  --env MY_ENV_VAR="["access:servers!server=gbianchini/", "access:servers!user=gbianchini"]" --env MY_ENV_VAR_EMPTY=   docker://busybox:latest /bin/sh -c echo "hello world!"[root@vk-test-789b6bb8b-nxgxr utils]# cat handles.py 
 from flask import Flask, request, jsonify
 import json
 import os
