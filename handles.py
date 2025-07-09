@@ -1,3 +1,8 @@
+#!/bin/bash
+
+
+
+singularity exec  --env MY_ENV_VAR="["access:servers!server=gbianchini/", "access:servers!user=gbianchini"]" --env MY_ENV_VAR_EMPTY=   docker://busybox:latest /bin/sh -c echo "hello world!"[root@vk-test-789b6bb8b-nxgxr utils]# cat handles.py 
 from flask import Flask, request, jsonify
 import json
 import os
@@ -113,12 +118,18 @@ def prepare_envs(container):
     env = ""
     try:
         for env_var in container["env"]:
-            env += f"--env {env_var['name']}={env_var['value']} "
+            if env_var.get('value') is not None:
+                if env_var.get('value').startswith("["):
+                    modified_value = '"' + env_var.get('value').replace('"', '\"') + '"'
+                    env += f"--env {env_var['name']}={modified_value} "
+                else:
+                    env += f"--env {env_var['name']}={env_var['value']} "
+            else:
+                env += f"--env {env_var['name']}= "
         return [env]
     except Exception as e:
-        logging.info(f"Container has no env specified: {e}")
+        logging.info(f"There is some problem with your env variables: {e}")
         return [""]
-
 
 def prepare_mounts(pod, container_standalone):
     mounts = ["--bind"]
@@ -557,7 +568,7 @@ def SubmitHandler():
                     logging.warning(
                         "image-uri not specified for path in remote filesystem"
                     )
-            elif container["image"].startswith("/cvmfs"):
+            elif container["image"].startswith("/cvmfs") or container["image"].startswith("docker://"):
                 image = container["image"]
             else:
                 image = "docker://" + container["image"]
