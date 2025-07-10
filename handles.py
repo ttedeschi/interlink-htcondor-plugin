@@ -369,7 +369,16 @@ def produce_htcondor_singularity_script(containers, metadata, commands, input_fi
 """
             commands_joined = [prefix_]
             for i in range(0, len(commands)):
-                commands_joined.append(" ".join(commands[i]))
+                if i > 0:
+                    if "-c" in commands[i-1]:
+                        commands[i] = "\"" + commands[i] + "\"" 
+            commands_joined.append(" ".join(commands))
+            cleaned = []
+            for cmd in commands_joined:
+                c = re.sub(r'\s*""\s*', ' ', cmd)
+                c = re.sub(r' {2,}', ' ', c)
+                cleaned.append(c.strip())
+            commands_joined = cleaned
             f.write(batch_macros + "\n" + "\n".join(commands_joined))
 
         job = f"""
@@ -614,7 +623,7 @@ def SubmitHandler():
             #print("singularity_command:", singularity_command)
             singularity_commands.append(singularity_command)
         path = produce_htcondor_singularity_script(
-            containers, metadata, singularity_commands, input_files
+            containers, metadata, singularity_command, input_files
         )
 
     else:
