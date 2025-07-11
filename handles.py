@@ -7,6 +7,7 @@ import yaml
 import argparse
 import re
 from datetime import datetime
+import shlex
 
 parser = argparse.ArgumentParser()
 
@@ -597,18 +598,18 @@ def SubmitHandler():
             else:
                 mounts = [""]
             #if container["image"].startswith("/") or ".io" in container["image"]:
-            if container["image"].startswith("/") or "://" in container["image"]:
-                image_uri = metadata.get("Annotations", {}).get(
-                    "htcondor-job.knoc.io/image-root", None
-                )
-                if image_uri:
-                    logging.info(image_uri)
-                    image = image_uri + container["image"]
-                else:
-                    logging.warning(
-                        "image-uri not specified for path in remote filesystem"
-                    )
-            elif container["image"].startswith("/cvmfs") or container["image"].startswith("docker://"):
+            #if container["image"].startswith("/") or "://" in container["image"]:
+            #    image_uri = metadata.get("Annotations", {}).get(
+            #        "htcondor-job.knoc.io/image-root", None
+            #    )
+            #    if image_uri:
+            #        logging.info(image_uri)
+            #        image = image_uri + container["image"]
+            #    else:
+            #        logging.warning(
+            #            "image-uri not specified for path in remote filesystem"
+            #        )
+            if container["image"].startswith("/cvmfs") or container["image"].startswith("docker://"):
                 image = container["image"]
             else:
                 image = "docker://" + container["image"]
