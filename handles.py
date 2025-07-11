@@ -126,6 +126,33 @@ def prepare_envs(container):
         logging.info(f"There is some problem with your env variables: {e}")
         return [""]
 
+
+def prepare_env_file(container, metadata, env_file_name="jlab.env"):
+    env_file_name = f"{metadata['name']}-{metadata['uid']}_env.env"
+    env_file_path = os.path.join(
+        InterLinkConfigInst['DataRootFolder'],
+        env_file_name
+    )
+    lines = []
+
+    try:
+        for env_var in container.get("env", []):
+            name = env_var["name"]
+            raw_val = env_var.get("value") or ""
+            safe_val = shlex.quote(raw_val)
+            lines.append(f"{name}={safe_val}")
+
+        with open(env_file_path, "w") as fp:
+            fp.write("\n".join(lines) + "\n")
+        os.chmod(env_file_path, 0o777)
+        logging.info(f"Wrote env file to {env_file_path}")
+
+        return (["--env-file", env_file_name], env_file_path)
+
+    except Exception as e:
+        logging.error(f"Failed to write env file: {e}")
+        return ([], None)
+
 def prepare_mounts(pod, container_standalone):
     mounts = ["--bind"]
     mount_data = []
@@ -547,11 +574,20 @@ def SubmitHandler():
                 f"Beginning script generation for container {container['name']}"
             )
             commstr1 = ["singularity", "exec"]
-            envs = prepare_envs(container)
+            #envs = prepare_envs(container)
+            env_flags, env_path = prepare_env_file(container, metadata)
             image = ""
             mounts = [""]
             singularity_options = metadata.get("annotations", {}).get(
-                    "htcondor-job.vk.io/singularity-options", ""
+                    "slurm-job.vk.io/singularity-options", ""
+                )
+
+            flags = metadata.get("annotations", {}).get(
+                    "slurm-job.vk.io/flags", ""
+                )
+
+            pre_exec = metadata.get("annotations", {}).get(
+                    "slurm-job.vk.io/pre-exec", ""
                 )
             if containers_standalone is not None:
                 for c in containers_standalone:
@@ -561,8 +597,8 @@ def SubmitHandler():
             else:
                 mounts = [""]
             #if container["image"].startswith("/") or ".io" in container["image"]:
-            if container["image"].startswith("/") and not container["image"].startswith("/cvmfs"):
-                image_uri = metadata.get("annotations", {}).get(
+            if container["image"].startswith("/") or "://" in container["image"]:
+                image_uri = metadata.get("Annotations", {}).get(
                     "htcondor-job.knoc.io/image-root", None
                 )
                 if image_uri:
@@ -582,6 +618,8 @@ def SubmitHandler():
             for mount in mounts[-1].split(","):
                 if not "/cvmfs" in mount:
                     input_files.append(mount.split(":")[0])
+                if env_path:
+                    input_files.append(env_path)
             local_mounts = ["--bind", ""]
             for mount in (mounts[-1].split(","))[:-1]:
                 if "/cvmfs" not in mount:
@@ -600,9 +638,10 @@ def SubmitHandler():
 
             if "command" in container.keys() and "args" in container.keys():
                 singularity_command = (
-                    commstr1 
+                    [pre_exec] 
+                    + commstr1 
                     + [singularity_options]
-                    + envs
+                    + env_flags
                     + local_mounts
                     + [image]
                     + container["command"]
@@ -610,16 +649,32 @@ def SubmitHandler():
                 )
             elif "command" in container.keys():
                 singularity_command = (
-                    commstr1 + [singularity_options] + envs + local_mounts +
-                    [image] + container["command"]
+                    [pre_exec] 
+                    + commstr1 
+                    + [singularity_options] 
+                    + env_flags 
+                    + local_mounts 
+                    + [image] 
+                    + container["command"]
                 )
             elif "args" in container.keys():
                 singularity_command = (
-                    commstr1 + [singularity_options] + envs + local_mounts +
-                    [image] + container["args"]
+                    [pre_exec] 
+                    + commstr1 
+                    + [singularity_options] 
+                    + env_flags 
+                    + local_mounts 
+                    + [image] 
+                    + container["args"]
                 )
             else:
-                singularity_command = commstr1 + envs + local_mounts + [image]
+                singularity_command = ( 
+                    [pre_exec] 
+                    + commstr1
+                    + env_flags 
+                    + local_mounts 
+                    + [image]
+                )
             #print("singularity_command:", singularity_command)
             singularity_commands.append(singularity_command)
         path = produce_htcondor_singularity_script(
