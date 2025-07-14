@@ -206,16 +206,21 @@ def prepare_mounts(pod, container_standalone):
         mounts = [""]
     return mounts
 
+def extract_container(pod, container_standalone):
+    for c in pod["spec"]["containers"]:
+        if c["name"] == container_standalone["name"]:
+            return c
+    raise ValueError(f"Container {container_standalone['name']} not found in pod")
 
 def mountConfigMaps(pod, container_standalone):
     configMapNamePaths = []
-    wd = os.getcwd()
-    for c in pod["spec"]["containers"]:
-        if c["name"] == container_standalone["name"]:
-            container = c
+    # for c in pod["spec"]["containers"]:
+    #     if c["name"] == container_standalone["name"]:
+    #       container = c
+    container = extract_container(pod, container_standalone)
     if InterLinkConfigInst["ExportPodData"] and "volumeMounts" in container.keys():
         data_root_folder = InterLinkConfigInst["DataRootFolder"]
-        cmd = ["-rf", os.path.join(wd, data_root_folder, "configMaps")]
+        cmd = ["-rf", os.path.join(os.getcwd(), data_root_folder, "configMaps")]
         shell = subprocess.Popen(
             ["rm"] + cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -235,13 +240,13 @@ def mountConfigMaps(pod, container_standalone):
                     uid = pod["metadata"]["uid"]
                     for cfgMap in cfgMaps:
                         podConfigMapDir = os.path.join(
-                            wd,
+                            os.getcwd(),
                             data_root_folder,
                             f"{namespace}-{uid}/configMaps/",
                             vol["name"],
                         )
                         for key in cfgMap["data"].keys():
-                            path = os.path.join(wd, podConfigMapDir, key)
+                            path = os.path.join(os.getcwd(), podConfigMapDir, key)
                             path += f":{mountSpec['mountPath']}/{key}"
                             configMapNamePaths.append(path)
                         cmd = ["-p", podConfigMapDir]
@@ -265,15 +270,17 @@ def mountConfigMaps(pod, container_standalone):
     return configMapNamePaths
 
 
+
+
 def mountSecrets(pod, container_standalone):
     secret_name_paths = []
-    wd = os.getcwd()
-    for c in pod["spec"]["containers"]:
-        if c["name"] == container_standalone["name"]:
-            container = c
+    # for c in pod["spec"]["containers"]:
+    #     if c["name"] == container_standalone["name"]:
+    #         container = c
+    container = extract_container(pod, container_standalone)
     if InterLinkConfigInst["ExportPodData"] and "volumeMounts" in container.keys():
         data_root_folder = InterLinkConfigInst["DataRootFolder"]
-        cmd = ["-rf", os.path.join(wd, data_root_folder, "secrets")]
+        cmd = ["-rf", os.path.join(os.getcwd(), data_root_folder, "secrets")]
         subprocess.run(["rm"] + cmd, check=True)
         for mountSpec in container["volumeMounts"]:
             for vol in pod["spec"]["volumes"]:
@@ -287,7 +294,7 @@ def mountSecrets(pod, container_standalone):
                         namespace = pod["metadata"]["namespace"]
                         uid = pod["metadata"]["uid"]
                         pod_secret_dir = os.path.join(
-                            wd,
+                            os.getcwd(),
                             data_root_folder,
                             f"{namespace}-{uid}/secrets/",
                             vol["name"],
