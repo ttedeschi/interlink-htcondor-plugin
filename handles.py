@@ -399,7 +399,7 @@ def produce_htcondor_singularity_script(containers, metadata, commands, input_fi
             for i in range(0, len(commands)):
                 if i > 0:
                     if "-c" in commands[i-1]:
-                        commands[i] = "\"" + commands[i] + "\"" 
+                        commands[i] = "\'" + commands[i] + "\'" 
             commands_joined.append(" ".join(commands))
             cleaned = []
             for cmd in commands_joined:
@@ -924,3 +924,4 @@ app.add_url_rule("/getLogs", view_func=LogsHandler, methods=["GET"])
 
 if __name__ == "__main__":
     app.run(port=args.port, host="0.0.0.0", debug=True)
+    
