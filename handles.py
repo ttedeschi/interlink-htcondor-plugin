@@ -206,11 +206,13 @@ def prepare_mounts(pod, container_standalone):
         mounts = [""]
     return mounts
 
+
 def extract_container(pod, container_standalone):
     for c in pod["spec"]["containers"]:
         if c["name"] == container_standalone["name"]:
             return c
     raise ValueError(f"Container {container_standalone['name']} not found in pod")
+
 
 def mountConfigMaps(pod, container_standalone):
     configMapNamePaths = []
@@ -268,8 +270,6 @@ def mountConfigMaps(pod, container_standalone):
                             os.chmod(full_path, vol["configMap"]["defaultMode"])
                             logging.debug(f"--- Written ConfigMap file {full_path}")
     return configMapNamePaths
-
-
 
 
 def mountSecrets(pod, container_standalone):
