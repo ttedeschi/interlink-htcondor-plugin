@@ -1,5 +1,3 @@
-from datetime import datetime
-from flask import Flask, request, jsonify
 import argparse
 import json
 import logging
@@ -8,13 +6,14 @@ import re
 import shlex
 import subprocess
 import yaml
+from datetime import datetime
+from flask import Flask, request, jsonify
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--schedd-name", help="Schedd name", type=str, default="")
 parser.add_argument("--schedd-host", help="Schedd host", type=str, default="")
-parser.add_argument("--collector-host",
-                    help="Collector-host", type=str, default="")
+parser.add_argument("--collector-host", help="Collector-host", type=str, default="")
 parser.add_argument("--cadir", help="CA directory", type=str, default="")
 parser.add_argument("--certfile", help="cert file", type=str, default="")
 parser.add_argument("--keyfile", help="key file", type=str, default="")
@@ -112,8 +111,7 @@ def prepare_envs(container):
         for env_var in container["env"]:
             if env_var.get("value") is not None:
                 if env_var.get("value").startswith("["):
-                    modified_value = '"' + \
-                        env_var.get("value").replace('"', '"') + '"'
+                    modified_value = '"' + env_var.get("value").replace('"', '"') + '"'
                     env += f"--env {env_var['name']}={modified_value} "
                 else:
                     env += f"--env {env_var['name']}={env_var['value']} "
@@ -127,8 +125,7 @@ def prepare_envs(container):
 
 def prepare_env_file(container, metadata, env_file_name="jlab.env"):
     env_file_name = f"{metadata['name']}-{metadata['uid']}_env.env"
-    env_file_path = os.path.join(
-        InterLinkConfigInst["DataRootFolder"], env_file_name)
+    env_file_path = os.path.join(InterLinkConfigInst["DataRootFolder"], env_file_name)
     lines = []
 
     try:
@@ -176,8 +173,7 @@ def prepare_mounts(pod, container_standalone):
                 if vol["name"] != mount_var["name"]:
                     continue
                 if "configMap" in vol.keys():
-                    config_maps_paths = mountConfigMaps(
-                        pod, container_standalone)
+                    config_maps_paths = mountConfigMaps(pod, container_standalone)
                     # print("bind as configmap", mount_var["name"], vol["name"])
                     for i, path in enumerate(config_maps_paths):
                         mount_data.append(path)
@@ -234,8 +230,8 @@ def mountConfigMaps(pod, container_standalone):
                 if "configMap" in vol.keys():
                     print("container_standalone:", container_standalone)
                     cfgMaps = container_standalone["configMaps"]
-                    namespace = pod['metadata']['namespace']
-                    uid = pod['metadata']['uid']
+                    namespace = pod["metadata"]["namespace"]
+                    uid = pod["metadata"]["uid"]
                     for cfgMap in cfgMaps:
                         podConfigMapDir = os.path.join(
                             wd,
@@ -257,17 +253,14 @@ def mountConfigMaps(pod, container_standalone):
                         if execReturn:
                             logging.error(err)
                         else:
-                            logging.debug(
-                                f"--- Created folder {podConfigMapDir}")
+                            logging.debug(f"--- Created folder {podConfigMapDir}")
                         logging.debug("--- Writing ConfigMaps files")
                         for k, v in cfgMap["data"].items():
                             full_path = os.path.join(podConfigMapDir, k)
                             with open(full_path, "w") as f:
                                 f.write(v)
-                            os.chmod(
-                                full_path, vol["configMap"]["defaultMode"])
-                            logging.debug(
-                                f"--- Written ConfigMap file {full_path}")
+                            os.chmod(full_path, vol["configMap"]["defaultMode"])
+                            logging.debug(f"--- Written ConfigMap file {full_path}")
     return configMapNamePaths
 
 
@@ -290,8 +283,8 @@ def mountSecrets(pod, container_standalone):
                     for secret in secrets:
                         if secret["metadata"]["name"] != vol["secret"]["secretName"]:
                             continue
-                        namespace = pod['metadata']['namespace']
-                        uid = pod['metadata']['uid']
+                        namespace = pod["metadata"]["namespace"]
+                        uid = pod["metadata"]["uid"]
                         pod_secret_dir = os.path.join(
                             wd,
                             data_root_folder,
@@ -311,16 +304,14 @@ def mountSecrets(pod, container_standalone):
                             with open(full_path, "w") as f:
                                 f.write(v)
                             os.chmod(full_path, vol["secret"]["defaultMode"])
-                            logging.debug(
-                                f"--- Written Secret file {full_path}")
+                            logging.debug(f"--- Written Secret file {full_path}")
     return secret_name_paths
 
 
 def mount_empty_dir(container, pod):
     ed_path = None
     if InterLinkConfigInst["ExportPodData"] and "volumeMounts" in container.keys():
-        cmd = [
-            "-rf", os.path.join(InterLinkConfigInst["DataRootFolder"], "emptyDirs")]
+        cmd = ["-rf", os.path.join(InterLinkConfigInst["DataRootFolder"], "emptyDirs")]
         subprocess.run(["rm"] + cmd, check=True)
         for mount_spec in container["volumeMounts"]:
             pod_volume_spec = None
@@ -331,14 +322,12 @@ def mount_empty_dir(container, pod):
             if pod_volume_spec and pod_volume_spec["EmptyDir"]:
                 ed_path = os.path.join(
                     InterLinkConfigInst["DataRootFolder"],
-                    pod.namespace + "-" +
-                    str(pod.uid) + "/emptyDirs/" + vol.name,
+                    pod.namespace + "-" + str(pod.uid) + "/emptyDirs/" + vol.name,
                 )
                 cmd = ["-p", ed_path]
                 subprocess.run(["mkdir"] + cmd, check=True)
                 ed_path += (
-                    ":" + mount_spec["mount_path"] +
-                    "/" + mount_spec["name"] + ","
+                    ":" + mount_spec["mount_path"] + "/" + mount_spec["name"] + ","
                 )
 
     return ed_path
@@ -370,9 +359,9 @@ def parse_string_with_suffix(value_str):
 
 
 def produce_htcondor_singularity_script(containers, metadata, commands, input_files):
-    datarootfolder = InterLinkConfigInst['DataRootFolder']
-    name = metadata['name']
-    uid = metadata['uid']
+    datarootfolder = InterLinkConfigInst["DataRootFolder"]
+    name = metadata["name"]
+    uid = metadata["uid"]
     executable_path = f"./{datarootfolder}/{name}-{uid}.sh"
     sub_path = f"./{datarootfolder}/{name}-{uid}.jdl"
 
@@ -441,9 +430,9 @@ Queue 1
 
 
 def produce_htcondor_host_script(container, metadata):
-    datarootfolder = InterLinkConfigInst['DataRootFolder']
-    name = metadata['name']
-    uid = metadata['uid']
+    datarootfolder = InterLinkConfigInst["DataRootFolder"]
+    name = metadata["name"]
+    uid = metadata["uid"]
     executable_path = f"{datarootfolder}{name}-{uid}.sh"
     sub_path = f"{datarootfolder}{name}-{uid}.jdl"
     try:
@@ -489,9 +478,7 @@ def htcondor_batch_submit(job):
     logging.info("Submitting HTCondor job")
     collector = args.collector_host
     schedd = args.schedd_host
-    process = os.popen(
-        f"condor_submit -pool {collector} -remote {schedd} {job} -spool"
-    )
+    process = os.popen(f"condor_submit -pool {collector} -remote {schedd} {job} -spool")
     preprocessed = process.read()
     process.close()
     jid = preprocessed.split(" ")[-1].split(".")[0]
@@ -501,39 +488,29 @@ def htcondor_batch_submit(job):
 
 def delete_pod(pod):
 
-    datarootfolder = InterLinkConfigInst['DataRootFolder']
-    name = pod['metadata']['name']
-    uid = pod['metadata']['uid']
+    datarootfolder = InterLinkConfigInst["DataRootFolder"]
+    name = pod["metadata"]["name"]
+    uid = pod["metadata"]["uid"]
 
     logging.info(f"Deleting pod {pod['metadata']['name']}")
-    with open(
-        f"{datarootfolder}{name}-{uid}.jid"
-    ) as f:
+    with open(f"{datarootfolder}{name}-{uid}.jid") as f:
         data = f.read()
     jid = int(data.strip())
     process = os.popen(f"condor_rm {jid}")
     preprocessed = process.read()
     process.close()
-    os.remove(
-        f"{datarootfolder}{name}-{uid}.jid"
-    )
-    os.remove(
-        f"{datarootfolder}{name}-{uid}.sh"
-    )
-    os.remove(
-        f"{datarootfolder}{name}-{uid}.jdl"
-    )
-    os.remove(
-        f"{datarootfolder}{name}-{uid}_env.env"
-    )
+    os.remove(f"{datarootfolder}{name}-{uid}.jid")
+    os.remove(f"{datarootfolder}{name}-{uid}.sh")
+    os.remove(f"{datarootfolder}{name}-{uid}.jdl")
+    os.remove(f"{datarootfolder}{name}-{uid}_env.env")
 
     return preprocessed
 
 
 def handle_jid(jid, pod):
-    datarootfolder = InterLinkConfigInst['DataRootFolder']
-    name = pod['metadata']['name']
-    uid = pod['metadata']['uid']
+    datarootfolder = InterLinkConfigInst["DataRootFolder"]
+    name = pod["metadata"]["name"]
+    uid = pod["metadata"]["uid"]
 
     with open(
         f"{datarootfolder}{name}-{uid}.jid",
@@ -788,8 +765,7 @@ def StatusHandler():
             logging.info("Received ping request")
             if args.proxy and os.path.isfile(args.proxy):
                 return success_response(
-                    {"message": "HTCondor sidecar is alive",
-                        "status": "healthy"}, 200
+                    {"message": "HTCondor sidecar is alive", "status": "healthy"}, 200
                 )
             else:
                 return error_response(
@@ -848,14 +824,12 @@ def StatusHandler():
         # Get actual timestamps from HTCondor
         current_time = datetime.utcnow().isoformat() + "Z"
         start_time = (
-            datetime.fromtimestamp(
-                job.get("JobStartDate", 0)).isoformat() + "Z"
+            datetime.fromtimestamp(job.get("JobStartDate", 0)).isoformat() + "Z"
             if job.get("JobStartDate")
             else current_time
         )
         completion_time = (
-            datetime.fromtimestamp(
-                job.get("CompletionDate", 0)).isoformat() + "Z"
+            datetime.fromtimestamp(job.get("CompletionDate", 0)).isoformat() + "Z"
             if job.get("CompletionDate")
             else current_time
         )
@@ -955,3 +929,4 @@ app.add_url_rule("/getLogs", view_func=LogsHandler, methods=["GET"])
 
 if __name__ == "__main__":
     app.run(port=args.port, host="0.0.0.0", debug=True)
+
