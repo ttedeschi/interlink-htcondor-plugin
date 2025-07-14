@@ -206,27 +206,16 @@ def prepare_mounts(pod, container_standalone):
         mounts = [""]
     return mounts
 
-def get_export_command(container_standalone, pod, InterLinkConfigInst):
-    wd = os.getcwd()
-    container = None
-    for c in pod["spec"]["containers"]:
-        if c["name"] == container_standalone["name"]:
-            container = c
-    if InterLinkConfigInst["ExportPodData"] and "volumeMounts" in container.keys():
-        data_root_folder = InterLinkConfigInst["DataRootFolder"]
-        return ["-rf", os.path.join(wd, data_root_folder, "secrets")]
-    return []
-
 
 def mountConfigMaps(pod, container_standalone):
     configMapNamePaths = []
-    wd_cfgmap = os.getcwd()
+    wd = os.getcwd()
     for c in pod["spec"]["containers"]:
         if c["name"] == container_standalone["name"]:
             container = c
     if InterLinkConfigInst["ExportPodData"] and "volumeMounts" in container.keys():
         data_root_folder = InterLinkConfigInst["DataRootFolder"]
-        cmd = ["-rf", os.path.join(wd_cfgmap, data_root_folder, "configMaps")]
+        cmd = ["-rf", os.path.join(wd, data_root_folder, "configMaps")]
         shell = subprocess.Popen(
             ["rm"] + cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
