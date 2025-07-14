@@ -955,4 +955,3 @@ app.add_url_rule("/getLogs", view_func=LogsHandler, methods=["GET"])
 
 if __name__ == "__main__":
     app.run(port=args.port, host="0.0.0.0", debug=True)
-
